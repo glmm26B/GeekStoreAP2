@@ -58,6 +58,13 @@ class GatewayPagamento:
         raise NotImplementedError("Chamada real ao gateway bloqueada em teste!")
 
 
+class GatewayPagamentoMock(GatewayPagamento):
+    """Gateway falso para testes de integração e ambiente de desenvolvimento."""
+
+    def cobrar(self, valor: float) -> dict:
+        return {"status": "aprovado"}
+
+
 # ── Serviço de Pedidos (com DI) ───────────────────────────────────────────────
 
 class ServicoPedidos:
@@ -119,7 +126,9 @@ class ServicoPedidos:
 # ── Rotas Flask ───────────────────────────────────────────────────────────────
 
 def _make_servico():
-    """Factory usada nas rotas para criar ServicoPedidos com gateway real."""
+    """Factory usada nas rotas para criar ServicoPedidos com gateway correto."""
+    if app.config.get("TESTING") or os.environ.get("USE_TEST_GATEWAY") == "1":
+        return ServicoPedidos(gateway=GatewayPagamentoMock())
     return ServicoPedidos(gateway=GatewayPagamento())
 
 

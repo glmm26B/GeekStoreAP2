@@ -3,7 +3,12 @@ conftest.py – Fixtures compartilhadas entre toda a suíte de testes.
 """
 import os
 import sqlite3
+import threading
+import time
+from pathlib import Path
+
 import pytest
+import requests
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Constante que aponta para o banco temporário de testes
@@ -23,6 +28,7 @@ def test_db(tmp_path):
     db_path = str(tmp_path / TEST_DB)
 
     # Força o app a usar o banco de testes via variável de ambiente
+    original_db_url = os.environ.get("DATABASE_URL")
     os.environ["DATABASE_URL"] = db_path
 
     # Importa DEPOIS de setar a env var, para garantir que o módulo leia o valor correto
@@ -54,7 +60,11 @@ def test_db(tmp_path):
     conn.close()
     if os.path.exists(db_path):
         os.remove(db_path)
-    os.environ.pop("DATABASE_URL", None)
+
+    if original_db_url is None:
+        os.environ.pop("DATABASE_URL", None)
+    else:
+        os.environ["DATABASE_URL"] = original_db_url
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -88,3 +98,54 @@ def servico_com_mock(test_db, mocker):
 
     db_path = os.environ["DATABASE_URL"]
     return ServicoPedidos(gateway=gateway_mock, db_path=db_path), gateway_mock
+
+
+@pytest.fixture(scope="session", autouse=True)
+def live_server(tmp_path_factory):
+    """Inicia um servidor Flask local para os testes de integração que usam HTTP."""
+    db_path = str(tmp_path_factory.mktemp("live_server") / TEST_DB)
+    os.environ["DATABASE_URL"] = db_path
+
+    from app import app, init_db
+
+    app.config["TESTING"] = True
+    init_db(db_path)
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.execute(
+        "INSERT INTO produtos (nome, preco, estoque) VALUES (?,?,?)",
+        ("Teclado Mecânico RGB", 299.90, 10),
+    )
+    conn.execute(
+        "INSERT INTO produtos (nome, preco, estoque) VALUES (?,?,?)",
+        ("Mouse Gamer 12000 DPI", 189.90, 0),
+    )
+    conn.execute(
+        "INSERT INTO cupons (codigo, desconto) VALUES (?,?)",
+        ("DESCONTO10", 0.10),
+    )
+    conn.commit()
+    conn.close()
+
+    thread = threading.Thread(
+        target=app.run,
+        kwargs={
+            "host": "127.0.0.1",
+            "port": 5000,
+            "debug": False,
+            "use_reloader": False,
+        },
+        daemon=True,
+    )
+    thread.start()
+
+    for _ in range(20):
+        try:
+            requests.get("http://127.0.0.1:5000/produtos", timeout=1)
+            break
+        except requests.RequestException:
+            time.sleep(0.5)
+    else:
+        raise RuntimeError("Falha ao inicializar o servidor Flask de teste")
+
+    yield
