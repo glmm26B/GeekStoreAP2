@@ -1,0 +1,42 @@
+---
+test_name: Contrato da API GET /produtos
+
+includes:
+  - !include common.yaml
+
+stages:
+  - name: "GET /produtos retorna status 200"
+    request:
+      url: "{host}/produtos"
+      method: GET
+    response:
+      status_code: 200
+      headers:
+        content-type: !anystr
+      verify_response_with:
+        function: tests.tavern_helpers:verificar_lista_nao_vazia
+
+  - name: "Produto tem chaves id, nome, preco e estoque"
+    request:
+      url: "{host}/produtos/1"
+      method: GET
+    response:
+      status_code: 200
+      json:
+        id: !anyint
+        nome: !anystr
+        preco: !anyfloat
+        estoque: !anyint
+
+---
+test_name: Contrato da API GET /produtos/:id inexistente
+
+stages:
+  - name: "Produto inexistente retorna 404"
+    request:
+      url: "{host}/produtos/9999"
+      method: GET
+    response:
+      status_code: 404
+      json:
+        erro: !anystr

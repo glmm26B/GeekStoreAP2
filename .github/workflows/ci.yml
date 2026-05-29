@@ -1,0 +1,79 @@
+name: CI GeekStore
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout do repositório ────────────────────────────────────────
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      # ── 2. Configurar Python 3.10 ─────────────────────────────────────────
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      # ── 3. Cache de dependências pip ─────────────────────────────────────
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # ── 4. Instalar dependências ─────────────────────────────────────────
+      - name: Instalar dependências Python
+        run: pip install -r requirements.txt
+
+      # ── 5. Instalar Chrome e ChromeDriver (Selenium headless) ────────────
+      - name: Instalar Chrome
+        uses: browser-actions/setup-chrome@v1
+        with:
+          chrome-version: stable
+
+      - name: Instalar ChromeDriver
+        uses: nanasess/setup-chromedriver@v2
+
+      # ── 6. Seed do banco de dados para Tavern e Selenium ─────────────────
+      - name: Seed do banco de dados de produção
+        run: |
+          python -c "
+          from app import init_db, get_connection
+          init_db()
+          conn = get_connection()
+          conn.execute(\"INSERT OR IGNORE INTO produtos (nome, preco, estoque) VALUES ('Teclado Mecânico RGB', 299.90, 10)\")
+          conn.execute(\"INSERT OR IGNORE INTO produtos (nome, preco, estoque) VALUES ('Mouse Gamer 12000 DPI', 189.90, 0)\")
+          conn.execute(\"INSERT OR IGNORE INTO cupons (codigo, desconto) VALUES ('DESCONTO10', 0.10)\")
+          conn.commit()
+          conn.close()
+          print('Seed concluído!')
+          "
+
+      # ── 7. Iniciar aplicação em background ────────────────────────────────
+      - name: Iniciar a aplicação em background
+        run: |
+          python app.py &
+          sleep 5
+
+      # ── 8. Verificar se a aplicação está respondendo ──────────────────────
+      - name: Verificar saúde da aplicação
+        run: |
+          curl --retry 5 --retry-delay 2 --retry-connrefused http://localhost:5000/produtos
+
+      # ── 9. Rodar todos os testes com cobertura ────────────────────────────
+      - name: Rodar testes com cobertura (Pytest, BDD, Tavern, Selenium)
+        run: |
+          pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+
+      # ── 10. Publicar relatório de cobertura ───────────────────────────────
+      - name: Upload do relatório de cobertura
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          fail_ci_if_error: false

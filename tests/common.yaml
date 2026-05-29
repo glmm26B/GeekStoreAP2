@@ -1,0 +1,6 @@
+---
+name: Configurações comuns
+description: Variáveis compartilhadas entre os testes Tavern
+
+variables:
+  host: "http://localhost:5000"
