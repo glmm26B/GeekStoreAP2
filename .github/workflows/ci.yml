@@ -5,6 +5,8 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      USE_TEST_GATEWAY: "1"
 
     steps:
       # ── 1. Checkout do repositório ────────────────────────────────────────
