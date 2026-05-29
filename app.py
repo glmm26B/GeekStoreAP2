@@ -10,7 +10,10 @@ DEFAULT_DB = 'geekstore.db'
 # ── Dependency Injection: DB ──────────────────────────────────────────────────
 
 def get_db_path():
-    """Sempre lê a variável de ambiente no momento da chamada (suporta testes)."""
+    """Sempre lê a configuração do app ou a variável de ambiente no momento da chamada."""
+    db_path = app.config.get("DATABASE_URL")
+    if db_path:
+        return db_path
     return os.environ.get('DATABASE_URL', DEFAULT_DB)
 
 

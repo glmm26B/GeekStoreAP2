@@ -32,7 +32,10 @@ def test_db(tmp_path):
     os.environ["DATABASE_URL"] = db_path
 
     # Importa DEPOIS de setar a env var, para garantir que o módulo leia o valor correto
-    from app import init_db
+    from app import init_db, app
+
+    original_app_db = app.config.get("DATABASE_URL")
+    app.config["DATABASE_URL"] = db_path
 
     init_db(db_path)
 
@@ -65,6 +68,11 @@ def test_db(tmp_path):
         os.environ.pop("DATABASE_URL", None)
     else:
         os.environ["DATABASE_URL"] = original_db_url
+
+    if original_app_db is None:
+        app.config.pop("DATABASE_URL", None)
+    else:
+        app.config["DATABASE_URL"] = original_app_db
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -108,6 +116,8 @@ def live_server(tmp_path_factory):
 
     from app import app, init_db
 
+    original_app_db = app.config.get("DATABASE_URL")
+    app.config["DATABASE_URL"] = db_path
     app.config["TESTING"] = True
     init_db(db_path)
     conn = sqlite3.connect(db_path)
@@ -149,3 +159,8 @@ def live_server(tmp_path_factory):
         raise RuntimeError("Falha ao inicializar o servidor Flask de teste")
 
     yield
+
+    if original_app_db is None:
+        app.config.pop("DATABASE_URL", None)
+    else:
+        app.config["DATABASE_URL"] = original_app_db
