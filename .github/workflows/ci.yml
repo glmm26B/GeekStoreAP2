@@ -28,7 +28,7 @@ jobs:
 
       # ── 4. Instalar dependências ─────────────────────────────────────────
       - name: Instalar dependências Python
-        run: pip install -r requirements.txt
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt
 
       # ── 5. Instalar Chrome e ChromeDriver (Selenium headless) ────────────
       - name: Instalar Chrome
@@ -39,35 +39,13 @@ jobs:
       - name: Instalar ChromeDriver
         uses: nanasess/setup-chromedriver@v2
 
-      # ── 6. Seed do banco de dados para Tavern e Selenium ─────────────────
-      - name: Seed do banco de dados de produção
+      # ── 6. Iniciar servidor, verificar saúde e rodar testes ───────────────
+      - name: Iniciar servidor e rodar testes
         run: |
-          python -c "
-          from app import init_db, get_connection
-          init_db()
-          conn = get_connection()
-          conn.execute(\"INSERT OR IGNORE INTO produtos (nome, preco, estoque) VALUES ('Teclado Mecânico RGB', 299.90, 10)\")
-          conn.execute(\"INSERT OR IGNORE INTO produtos (nome, preco, estoque) VALUES ('Mouse Gamer 12000 DPI', 189.90, 0)\")
-          conn.execute(\"INSERT OR IGNORE INTO cupons (codigo, desconto) VALUES ('DESCONTO10', 0.10)\")
-          conn.commit()
-          conn.close()
-          print('Seed concluído!')
-          "
-
-      # ── 7. Iniciar aplicação em background ────────────────────────────────
-      - name: Iniciar a aplicação em background
-        run: |
-          python app.py &
+          python -c "from app import init_db, get_connection; init_db(); conn = get_connection(); conn.execute(\"INSERT OR IGNORE INTO produtos (nome, preco, estoque) VALUES ('Teclado Mecânico RGB', 299.90, 10)\"); conn.execute(\"INSERT OR IGNORE INTO produtos (nome, preco, estoque) VALUES ('Mouse Gamer 12000 DPI', 189.90, 0)\"); conn.execute(\"INSERT OR IGNORE INTO cupons (codigo, desconto) VALUES ('DESCONTO10', 0.10)\"); conn.commit(); conn.close(); print('Seed concluído!')"
+          python app.py > app.log 2>&1 &
           sleep 5
-
-      # ── 8. Verificar se a aplicação está respondendo ──────────────────────
-      - name: Verificar saúde da aplicação
-        run: |
           curl --retry 5 --retry-delay 2 --retry-connrefused http://localhost:5000/produtos
-
-      # ── 9. Rodar todos os testes com cobertura ────────────────────────────
-      - name: Rodar testes com cobertura (Pytest, BDD, Tavern, Selenium)
-        run: |
           pytest --cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=90
 
       # ── 10. Publicar relatório de cobertura ───────────────────────────────

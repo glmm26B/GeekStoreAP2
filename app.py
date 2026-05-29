@@ -252,4 +252,4 @@ def seed_dev_data(db_path=None):
 if __name__ == "__main__":
     init_db()
     seed_dev_data()
-    app.run(debug=False, port=5000)
+    app.run(host="0.0.0.0", debug=False, port=5000)
